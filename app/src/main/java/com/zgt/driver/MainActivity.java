@@ -5,10 +5,13 @@ import androidx.core.app.ActivityCompat;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.webkit.GeolocationPermissions;
+import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -22,12 +25,15 @@ import com.amap.api.location.AMapLocationListener;
 import com.hdgq.locationlib.LocationOpenApi;
 import com.hdgq.locationlib.listener.OnResultListener;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 
 public class MainActivity extends AppCompatActivity implements AMapLocationListener {
-    WebView webView ;
+    WebView webView;
     private long exitTime = 0;
 
     //声明mlocationClient对象
@@ -36,6 +42,8 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     public AMapLocationClientOption mLocationOption = null;
     private double lat = -1;
     private double lon = -1;
+    public String tag = "MainActivity";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,7 +61,9 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         settings.setBuiltInZoomControls(false);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        webView.loadUrl("http://212.64.72.2:98/index.html");
         settings.setJavaScriptEnabled(true);
+        webView.addJavascriptInterface(new JSHook(), "android");
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -61,33 +71,35 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                 return true;
             }
         });
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onReceivedIcon(WebView view, Bitmap icon) {
-                super.onReceivedIcon(view, icon);
+//        webView.setWebChromeClient(new WebChromeClient() {
+//            @Override
+//            public void onReceivedIcon(WebView view, Bitmap icon) {
+//                super.onReceivedIcon(view, icon);
+//
+//            }
+//
+//            @Override
+//            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+//                callback.invoke(origin, true, false);
+//                super.onGeolocationPermissionsShowPrompt(origin, callback);
+//            }
+//        });
 
-            }
-
-            @Override
-            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                callback.invoke(origin, true, false);
-                super.onGeolocationPermissionsShowPrompt(origin, callback);
-            }
-        });
-        webView.loadUrl("http://212.64.72.2:98/index.html");
         LocationOpenApi.init(this, "com.zgt.driver", "088f5e3b5cc04abfb777bcacccc99be0dcdc0824eaf64525bf12a84667bc79030128889eacf54256a1dac44960997416"
-                , "", "debug", new OnResultListener() {
+                , "360008", "debug", new OnResultListener() {
                     @Override
                     public void onSuccess() {
-                        Toast.makeText(MainActivity.this,"定位上传初始化成功",Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "定位上传初始化成功", Toast.LENGTH_SHORT).show();
+//
                     }
 
                     @Override
                     public void onFailure(String s, String s1) {
-                        Toast.makeText(MainActivity.this,"定位上传初始化失败",Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "定位上传初始化失败", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
+
     private void initPermission() {
         //检查权限
         String[] permissions = CheckPermissionUtils.checkPermission(this);
@@ -99,6 +111,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             ActivityCompat.requestPermissions(this, permissions, 100);
         }
     }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
 
@@ -109,13 +122,14 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                 Toast.makeText(this, "再按一次退出程序", Toast.LENGTH_SHORT).show();
                 exitTime = System.currentTimeMillis();
             } else {
-                AppManager.getAppManager().AppExit(this,false);
+                AppManager.getAppManager().AppExit(this, false);
             }
             return true;
         }
         return super.onKeyDown(keyCode, event);
     }
-    public void  getLocation(){
+
+    public void getLocation() {
         mlocationClient = new AMapLocationClient(this);
 //初始化定位参数
         mLocationOption = new AMapLocationClientOption();
@@ -141,20 +155,36 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             if (aMapLocation.getErrorCode() == 0) {
                 //定位成功回调信息，设置相关消息
                 aMapLocation.getLocationType();//获取当前定位结果来源，如网络定位结果，详见定位类型表
-                lat =  aMapLocation.getLatitude();//获取纬度
+                lat = aMapLocation.getLatitude();//获取纬度
                 lon = aMapLocation.getLongitude();//获取经度
                 aMapLocation.getAccuracy();//获取精度信息
                 SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                 Date date = new Date(aMapLocation.getTime());
                 df.format(date);//定位时间
-                Log.e("AmapError","lat"
+                Log.e("AmapError", "lat"
                         + lat + "lon"
-                        +lon);
+                        + lon);
             } else {
                 //显示错误信息ErrCode是错误码，errInfo是错误信息，详见错误码表。
-                Log.e("AmapError","location Error, ErrCode:"
+                Log.e("AmapError", "location Error, ErrCode:"
                         + aMapLocation.getErrorCode() + ", errInfo:"
                         + aMapLocation.getErrorInfo());
+            }
+        }
+    }
+
+    public class JSHook {
+        @JavascriptInterface
+        public void showToast(final String json) {
+            Log.d(tag, "JS发送过来的登录类型" + json);
+            //做判断是那种类型调用哪个登录方法
+            if ("startLocation".equals(json)) {
+//                        LocationOpenApi.start();
+            }
+            else if ("stopLocation".equals(json)) {
+
+            }else if ("signLocation".equals(json)) {
+
             }
         }
     }

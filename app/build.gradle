@@ -15,7 +15,7 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file('F:\\androidstudio\\wuhai\\签名文件\\zgt.jks')
+            storeFile file('H:\\project\\waibao2\\签名文件\\zgt.jks')
             storePassword 'zgt123456'
             keyAlias 'key'
             keyPassword '123456'
@@ -65,11 +65,10 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 //    implementation 'com.amap.api:location:4.8.0'
 
-    implementation 'com.amap.api:3dmap:7.1.0'
+//    implementation 'com.amap.api:3dmap:7.1.0'
     implementation 'com.lzy.net:okgo:3.0.4'
     implementation 'com.alibaba:fastjson:1.2.61'
     implementation 'org.bouncycastle:bcprov-jdk15on:1.47'
     implementation (name:'locationsdk-1.0.0', ext:'aar')
-    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'], exclude: [])
 
 }
