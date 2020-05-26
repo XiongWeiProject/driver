@@ -3,10 +3,19 @@ package com.zgt.driver;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import android.annotation.TargetApi;
+import android.app.Activity;
+import android.content.ClipData;
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.webkit.GeolocationPermissions;
@@ -18,12 +27,15 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import com.alibaba.fastjson.JSON;
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.hdgq.locationlib.LocationOpenApi;
+import com.hdgq.locationlib.entity.ShippingNoteInfo;
 import com.hdgq.locationlib.listener.OnResultListener;
+import com.zgt.driver.model.StartLocation;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,7 +47,10 @@ import java.util.Date;
 public class MainActivity extends AppCompatActivity implements AMapLocationListener {
     WebView webView;
     private long exitTime = 0;
-
+    StartLocation startLocation;
+    private ValueCallback<Uri> uploadMessage;
+    private ValueCallback<Uri[]> uploadMessageAboveL;
+    private final static int FILE_CHOOSER_RESULT_CODE = 10000;
     //声明mlocationClient对象
     public AMapLocationClient mlocationClient;
     //声明mLocationOption对象
@@ -61,6 +76,38 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         settings.setBuiltInZoomControls(false);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
+        webView.getSettings().setBlockNetworkImage(false);//解决图片不显示
+        webView.setWebChromeClient(new WebChromeClient() {
+
+            // For Android < 3.0
+            public void openFileChooser(ValueCallback<Uri> valueCallback) {
+                uploadMessage = valueCallback;
+                openImageChooserActivity();
+            }
+
+            // For Android  >= 3.0
+            public void openFileChooser(ValueCallback valueCallback, String acceptType) {
+                uploadMessage = valueCallback;
+                openImageChooserActivity();
+            }
+
+            //For Android  >= 4.1
+            public void openFileChooser(ValueCallback<Uri> valueCallback, String acceptType, String capture) {
+                uploadMessage = valueCallback;
+                openImageChooserActivity();
+            }
+
+            // For Android >= 5.0
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                uploadMessageAboveL = filePathCallback;
+                openImageChooserActivity();
+                return true;
+            }
+        });
         webView.loadUrl("http://212.64.72.2:98/index.html");
         settings.setJavaScriptEnabled(true);
         webView.addJavascriptInterface(new JSHook(), "android");
@@ -177,15 +224,112 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         @JavascriptInterface
         public void showToast(final String json) {
             Log.d(tag, "JS发送过来的登录类型" + json);
+            startLocation = JSON.parseObject(json,StartLocation.class);
             //做判断是那种类型调用哪个登录方法
-            if ("startLocation".equals(json)) {
-//                        LocationOpenApi.start();
+            if ("startLocation".equals(startLocation.getType())) {
+                ShippingNoteInfo shippingNoteInfo= new ShippingNoteInfo();
+                shippingNoteInfo.setShippingNoteNumber(startLocation.getShippingNoteNumber());
+                shippingNoteInfo.setSerialNumber(startLocation.getSerialNumber());
+                shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.getStartCountrySubdivisionCode());
+                shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.getEndCountrySubdivisionCode());
+                ShippingNoteInfo[] startLocation = new ShippingNoteInfo[]{shippingNoteInfo};
+                LocationOpenApi.start(MainActivity.this, startLocation, new OnResultListener() {
+                            @Override
+                            public void onSuccess() {
+                                Toast.makeText(MainActivity.this, "定位上传成功", Toast.LENGTH_SHORT).show();
+                            }
+
+                            @Override
+                            public void onFailure(String s, String s1) {
+                                Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
+                            }
+                        });
             }
-            else if ("stopLocation".equals(json)) {
+            else if ("stopLocation".equals(startLocation.getType())) {
+                ShippingNoteInfo shippingNoteInfo= new ShippingNoteInfo();
+                shippingNoteInfo.setShippingNoteNumber(startLocation.getShippingNoteNumber());
+                shippingNoteInfo.setSerialNumber(startLocation.getSerialNumber());
+                shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.getStartCountrySubdivisionCode());
+                shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.getEndCountrySubdivisionCode());
+                ShippingNoteInfo[] startLocation = new ShippingNoteInfo[]{shippingNoteInfo};
+                LocationOpenApi.stop(MainActivity.this, startLocation, new OnResultListener() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(MainActivity.this, "定位上传已停止", Toast.LENGTH_SHORT).show();
+                    }
 
-            }else if ("signLocation".equals(json)) {
-
+                    @Override
+                    public void onFailure(String s, String s1) {
+                        Toast.makeText(MainActivity.this, "定位上传停止失败", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         }
     }
+    private void openImageChooserActivity() {
+        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("image/*");
+        startActivityForResult(Intent.createChooser(i, "Image Chooser"), FILE_CHOOSER_RESULT_CODE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == FILE_CHOOSER_RESULT_CODE) {
+            if (null == uploadMessage && null == uploadMessageAboveL) return;
+            Uri result = data == null || resultCode != RESULT_OK ? null : data.getData();
+            if (uploadMessageAboveL != null) {
+                onActivityResultAboveL(requestCode, resultCode, data);
+            } else if (uploadMessage != null) {
+                uploadMessage.onReceiveValue(result);
+                uploadMessage = null;
+            }
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void onActivityResultAboveL(int requestCode, int resultCode, Intent intent) {
+        if (requestCode != FILE_CHOOSER_RESULT_CODE || uploadMessageAboveL == null)
+            return;
+        Uri[] results = null;
+        if (resultCode == Activity.RESULT_OK) {
+            if (intent != null) {
+                String dataString = intent.getDataString();
+                ClipData clipData = intent.getClipData();
+                if (clipData != null) {
+                    results = new Uri[clipData.getItemCount()];
+                    for (int i = 0; i < clipData.getItemCount(); i++) {
+                        ClipData.Item item = clipData.getItemAt(i);
+                        results[i] = item.getUri();
+                    }
+                }
+                if (dataString != null)
+                    results = new Uri[]{Uri.parse(dataString)};
+            }
+        }
+        uploadMessageAboveL.onReceiveValue(results);
+        uploadMessageAboveL = null;
+    }
+    public static Uri getImageContentUri(Context context, String filePath) {//File imageFile
+        //String filePath = imageFile.getAbsolutePath();//根据文件来获取路径
+        Cursor cursor = context.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                new String[] { MediaStore.Images.Media._ID }, MediaStore.Images.Media.DATA + "=? ",
+                new String[] { filePath }, null);
+        if (cursor != null && cursor.moveToFirst()) {
+            int id = cursor.getInt(cursor.getColumnIndex(MediaStore.MediaColumns._ID));
+            Uri baseUri = Uri.parse("content://media/external/images/media");
+            return Uri.withAppendedPath(baseUri, "" + id);
+        } else {
+            if (TextUtils.isEmpty(filePath)) {//imageFile.exists()判断文件存不存在
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Images.Media.DATA, filePath);
+                return context.getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            } else {
+                return null;
+            }
+        }
+
+    }
+
 }
