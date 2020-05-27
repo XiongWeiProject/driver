@@ -14,6 +14,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
@@ -48,6 +49,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     WebView webView;
     private long exitTime = 0;
     StartLocation startLocation;
+    ShippingNoteInfo[] startLocations;
     private ValueCallback<Uri> uploadMessage;
     private ValueCallback<Uri[]> uploadMessageAboveL;
     private final static int FILE_CHOOSER_RESULT_CODE = 10000;
@@ -58,6 +60,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     private double lat = -1;
     private double lon = -1;
     public String tag = "MainActivity";
+    private boolean isFirst = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,7 +148,34 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                         Toast.makeText(MainActivity.this, "定位上传初始化失败", Toast.LENGTH_SHORT).show();
                     }
                 });
+
+        if (isFirst) {
+            handler.postDelayed(runnable, 5000);//每两秒执行一次runnable.
+        } else {
+            handler.removeCallbacks(runnable);
+        }
     }
+
+    Handler handler = new Handler();
+    final Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+            // TODO Auto-generated method stub
+            //要做的事情
+            LocationOpenApi.start(MainActivity.this, startLocations, new OnResultListener() {
+                @Override
+                public void onSuccess() {
+                                Toast.makeText(MainActivity.this, "定位上传成功", Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onFailure(String s, String s1) {
+//                                Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
+                }
+            });
+            handler.postDelayed(this, 2000);
+        }
+    };
 
     private void initPermission() {
         //检查权限
@@ -224,29 +254,30 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         @JavascriptInterface
         public void showToast(final String json) {
             Log.d(tag, "JS发送过来的登录类型" + json);
-            startLocation = JSON.parseObject(json,StartLocation.class);
+            startLocation = JSON.parseObject(json, StartLocation.class);
             //做判断是那种类型调用哪个登录方法
             if ("startLocation".equals(startLocation.getType())) {
-                ShippingNoteInfo shippingNoteInfo= new ShippingNoteInfo();
+                isFirst = true;
+                ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
                 shippingNoteInfo.setShippingNoteNumber(startLocation.getShippingNoteNumber());
                 shippingNoteInfo.setSerialNumber(startLocation.getSerialNumber());
                 shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.getStartCountrySubdivisionCode());
                 shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.getEndCountrySubdivisionCode());
-                ShippingNoteInfo[] startLocation = new ShippingNoteInfo[]{shippingNoteInfo};
-                LocationOpenApi.start(MainActivity.this, startLocation, new OnResultListener() {
-                            @Override
-                            public void onSuccess() {
+                startLocations = new ShippingNoteInfo[]{shippingNoteInfo};
+                LocationOpenApi.start(MainActivity.this, startLocations, new OnResultListener() {
+                    @Override
+                    public void onSuccess() {
                                 Toast.makeText(MainActivity.this, "定位上传成功", Toast.LENGTH_SHORT).show();
-                            }
+                    }
 
-                            @Override
-                            public void onFailure(String s, String s1) {
-                                Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
-                            }
-                        });
-            }
-            else if ("stopLocation".equals(startLocation.getType())) {
-                ShippingNoteInfo shippingNoteInfo= new ShippingNoteInfo();
+                    @Override
+                    public void onFailure(String s, String s1) {
+//                                Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } else if ("stopLocation".equals(startLocation.getType())) {
+                isFirst = false;
+                ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
                 shippingNoteInfo.setShippingNoteNumber(startLocation.getShippingNoteNumber());
                 shippingNoteInfo.setSerialNumber(startLocation.getSerialNumber());
                 shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.getStartCountrySubdivisionCode());
@@ -255,17 +286,18 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                 LocationOpenApi.stop(MainActivity.this, startLocation, new OnResultListener() {
                     @Override
                     public void onSuccess() {
-                        Toast.makeText(MainActivity.this, "定位上传已停止", Toast.LENGTH_SHORT).show();
+//                        Toast.makeText(MainActivity.this, "定位上传已停止", Toast.LENGTH_SHORT).show();
                     }
 
                     @Override
                     public void onFailure(String s, String s1) {
-                        Toast.makeText(MainActivity.this, "定位上传停止失败", Toast.LENGTH_SHORT).show();
+//                        Toast.makeText(MainActivity.this, "定位上传停止失败", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
         }
     }
+
     private void openImageChooserActivity() {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -311,11 +343,12 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         uploadMessageAboveL.onReceiveValue(results);
         uploadMessageAboveL = null;
     }
+
     public static Uri getImageContentUri(Context context, String filePath) {//File imageFile
         //String filePath = imageFile.getAbsolutePath();//根据文件来获取路径
         Cursor cursor = context.getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                new String[] { MediaStore.Images.Media._ID }, MediaStore.Images.Media.DATA + "=? ",
-                new String[] { filePath }, null);
+                new String[]{MediaStore.Images.Media._ID}, MediaStore.Images.Media.DATA + "=? ",
+                new String[]{filePath}, null);
         if (cursor != null && cursor.moveToFirst()) {
             int id = cursor.getInt(cursor.getColumnIndex(MediaStore.MediaColumns._ID));
             Uri baseUri = Uri.parse("content://media/external/images/media");
@@ -332,4 +365,9 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
 
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        handler.removeCallbacks(runnable);
+    }
 }
