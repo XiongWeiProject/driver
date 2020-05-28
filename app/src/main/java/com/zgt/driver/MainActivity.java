@@ -15,6 +15,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
@@ -36,6 +37,10 @@ import com.amap.api.location.AMapLocationListener;
 import com.hdgq.locationlib.LocationOpenApi;
 import com.hdgq.locationlib.entity.ShippingNoteInfo;
 import com.hdgq.locationlib.listener.OnResultListener;
+import com.lzy.okgo.OkGo;
+import com.lzy.okgo.cache.CacheMode;
+import com.lzy.okgo.callback.StringCallback;
+import com.lzy.okgo.model.Response;
 import com.zgt.driver.model.StartLocation;
 
 import org.json.JSONException;
@@ -43,12 +48,13 @@ import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 
 public class MainActivity extends AppCompatActivity implements AMapLocationListener {
     WebView webView;
     private long exitTime = 0;
-    StartLocation startLocation;
+    List<StartLocation> startLocation;
     ShippingNoteInfo[] startLocations;
     private ValueCallback<Uri> uploadMessage;
     private ValueCallback<Uri[]> uploadMessageAboveL;
@@ -61,6 +67,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     private double lon = -1;
     public String tag = "MainActivity";
     private boolean isFirst = false;
+    Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,8 +75,8 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.web_view);
         initPermission();
-//        getLocation();
-
+        getLocation();
+        handler = new Handler();
         WebSettings settings = webView.getSettings();
         settings.setDatabaseEnabled(true);
         String dir = this.getApplicationContext().getDir("database", Context.MODE_PRIVATE).getPath();
@@ -149,33 +156,8 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                     }
                 });
 
-        if (isFirst) {
-            handler.postDelayed(runnable, 5000);//每两秒执行一次runnable.
-        } else {
-            handler.removeCallbacks(runnable);
-        }
     }
 
-    Handler handler = new Handler();
-    final Runnable runnable = new Runnable() {
-        @Override
-        public void run() {
-            // TODO Auto-generated method stub
-            //要做的事情
-            LocationOpenApi.start(MainActivity.this, startLocations, new OnResultListener() {
-                @Override
-                public void onSuccess() {
-                                Toast.makeText(MainActivity.this, "定位上传成功", Toast.LENGTH_SHORT).show();
-                }
-
-                @Override
-                public void onFailure(String s, String s1) {
-//                                Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
-                }
-            });
-            handler.postDelayed(this, 2000);
-        }
-    };
 
     private void initPermission() {
         //检查权限
@@ -215,7 +197,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
 //设置定位模式为高精度模式，Battery_Saving为低功耗模式，Device_Sensors是仅设备模式
         mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
 //设置定位间隔,单位毫秒,默认为2000ms
-        mLocationOption.setInterval(2000);
+        mLocationOption.setInterval(300000);
 //设置定位参数
         mlocationClient.setLocationOption(mLocationOption);
 // 此方法为每隔固定时间会发起一次定位请求，为了减少电量消耗或网络流量消耗，
@@ -223,7 +205,8 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
 // 在定位结束后，在合适的生命周期调用onDestroy()方法
 // 在单次定位情况下，定位无论成功与否，都无需调用stopLocation()方法移除请求，定位sdk内部会移除
 //启动定位
-        mlocationClient.startLocation();
+
+
     }
 
     @Override
@@ -238,6 +221,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                 SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                 Date date = new Date(aMapLocation.getTime());
                 df.format(date);//定位时间
+                upLoadLocation(lat + "", lon + "");
                 Log.e("AmapError", "lat"
                         + lat + "lon"
                         + lon);
@@ -250,53 +234,89 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         }
     }
 
+    private void upLoadLocation(String s, String s1) {
+        OkGo.<String>post("http://212.64.72.2:8080/wuche2/appUser/saveLocationLog")
+                .tag(this)
+                .cacheKey("cachePostKey")
+                .cacheMode(CacheMode.NO_CACHE)
+                .params("lgt", s1)
+                .params("lat", s)
+                .params("driver_id", startLocation.get(0).getDriver_id())
+                .params("vehicle_id", startLocation.get(0).getVehicle_id())
+                .params("shipid", startLocation.get(0).getShipid())
+                .params("shiptype", 2)
+                .execute(new StringCallback() {
+                    @Override
+                    public void onSuccess(Response<String> response) {
+
+                        Log.e("AmapError", "上传成功");
+                    }
+
+                    @Override
+                    public void onError(Response<String> response) {
+                        super.onError(response);
+                        Log.e("AmapError", "上传失败");
+                    }
+                });
+    }
+
+
     public class JSHook {
         @JavascriptInterface
         public void showToast(final String json) {
             Log.d(tag, "JS发送过来的登录类型" + json);
-            startLocation = JSON.parseObject(json, StartLocation.class);
+            startLocation = JSON.parseArray(json, StartLocation.class);
             //做判断是那种类型调用哪个登录方法
-            if ("startLocation".equals(startLocation.getType())) {
+            if ("startLocation".equals(startLocation.get(0).getType())) {
                 isFirst = true;
+                mlocationClient.startLocation();
                 ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
-                shippingNoteInfo.setShippingNoteNumber(startLocation.getShippingNoteNumber());
-                shippingNoteInfo.setSerialNumber(startLocation.getSerialNumber());
-                shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.getStartCountrySubdivisionCode());
-                shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.getEndCountrySubdivisionCode());
+                shippingNoteInfo.setShippingNoteNumber(startLocation.get(0).getShippingNoteNumber());
+                shippingNoteInfo.setSerialNumber(startLocation.get(0).getSerialNumber());
+                shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.get(0).getStartCountrySubdivisionCode());
+                shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.get(0).getEndCountrySubdivisionCode());
                 startLocations = new ShippingNoteInfo[]{shippingNoteInfo};
                 LocationOpenApi.start(MainActivity.this, startLocations, new OnResultListener() {
                     @Override
                     public void onSuccess() {
-                                Toast.makeText(MainActivity.this, "定位上传成功", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "定位上传成功", Toast.LENGTH_SHORT).show();
                     }
 
                     @Override
                     public void onFailure(String s, String s1) {
-//                                Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "定位上传失败", Toast.LENGTH_SHORT).show();
                     }
                 });
-            } else if ("stopLocation".equals(startLocation.getType())) {
+            } else if ("stopLocation".equals(startLocation.get(0).getType())) {
                 isFirst = false;
+                mlocationClient.stopLocation();
                 ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
-                shippingNoteInfo.setShippingNoteNumber(startLocation.getShippingNoteNumber());
-                shippingNoteInfo.setSerialNumber(startLocation.getSerialNumber());
-                shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.getStartCountrySubdivisionCode());
-                shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.getEndCountrySubdivisionCode());
-                ShippingNoteInfo[] startLocation = new ShippingNoteInfo[]{shippingNoteInfo};
-                LocationOpenApi.stop(MainActivity.this, startLocation, new OnResultListener() {
+                shippingNoteInfo.setShippingNoteNumber(startLocation.get(0).getShippingNoteNumber());
+                shippingNoteInfo.setSerialNumber(startLocation.get(0).getSerialNumber());
+                shippingNoteInfo.setStartCountrySubdivisionCode(startLocation.get(0).getStartCountrySubdivisionCode());
+                shippingNoteInfo.setEndCountrySubdivisionCode(startLocation.get(0).getEndCountrySubdivisionCode());
+                startLocations = new ShippingNoteInfo[]{shippingNoteInfo};
+                LocationOpenApi.stop(MainActivity.this, startLocations, new OnResultListener() {
                     @Override
                     public void onSuccess() {
-//                        Toast.makeText(MainActivity.this, "定位上传已停止", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "定位上传已停止", Toast.LENGTH_SHORT).show();
                     }
 
                     @Override
                     public void onFailure(String s, String s1) {
-//                        Toast.makeText(MainActivity.this, "定位上传停止失败", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "定位上传停止失败", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
         }
     }
+
+    Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+
+        }
+    };
 
     private void openImageChooserActivity() {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -368,6 +388,5 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        handler.removeCallbacks(runnable);
     }
 }

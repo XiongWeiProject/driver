@@ -2,15 +2,22 @@ package com.zgt.driver.model;
 
 public class StartLocation {
 
+
     /**
-     * type : startLocation
-     * shippingNoteNumber : P20052300061
+     * type : stopLocation
+     * driver_id : 94
+     * vehicle_id : 103
+     * shipid : 214
+     * shippingNoteNumber : P20051900006
      * serialNumber : 0000
      * startCountrySubdivisionCode : 110100
      * endCountrySubdivisionCode : 110100
      */
 
     private String type;
+    private int driver_id;
+    private int vehicle_id;
+    private int shipid;
     private String shippingNoteNumber;
     private String serialNumber;
     private String startCountrySubdivisionCode;
@@ -22,6 +29,30 @@ public class StartLocation {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public int getDriver_id() {
+        return driver_id;
+    }
+
+    public void setDriver_id(int driver_id) {
+        this.driver_id = driver_id;
+    }
+
+    public int getVehicle_id() {
+        return vehicle_id;
+    }
+
+    public void setVehicle_id(int vehicle_id) {
+        this.vehicle_id = vehicle_id;
+    }
+
+    public int getShipid() {
+        return shipid;
+    }
+
+    public void setShipid(int shipid) {
+        this.shipid = shipid;
     }
 
     public String getShippingNoteNumber() {
