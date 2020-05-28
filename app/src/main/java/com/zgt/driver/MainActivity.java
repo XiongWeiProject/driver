@@ -270,6 +270,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             if ("startLocation".equals(startLocation.get(0).getType())) {
                 isFirst = true;
                 mlocationClient.startLocation();
+
                 ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
                 shippingNoteInfo.setShippingNoteNumber(startLocation.get(0).getShippingNoteNumber());
                 shippingNoteInfo.setSerialNumber(startLocation.get(0).getSerialNumber());
