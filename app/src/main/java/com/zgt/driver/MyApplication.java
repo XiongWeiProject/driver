@@ -1,6 +1,8 @@
 package com.zgt.driver;
 
+import android.app.AlarmManager;
 import android.app.Application;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 
@@ -30,6 +32,7 @@ public class MyApplication extends Application {
                             /** 14. * 运行中 15. * 由于服务可能会多次自动启动，该方法可能重复调用 16. */
                             @Override
                             public void onWorking() {
+
                             }
 
                             /** 21. * 服务终止 22. * 由于服务可能会被多次终止，该方法可能重复调用，需同 onWorking 配 套使用， 23. * 如注册和注销 broadcast 24. */

@@ -5,6 +5,8 @@ import androidx.core.app.ActivityCompat;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Context;
@@ -41,8 +43,11 @@ import com.lzy.okgo.OkGo;
 import com.lzy.okgo.cache.CacheMode;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
+import com.zgt.driver.model.AnyEventType;
 import com.zgt.driver.model.StartLocation;
 
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -51,7 +56,7 @@ import java.util.Date;
 import java.util.List;
 
 
-public class MainActivity extends AppCompatActivity implements AMapLocationListener {
+public class MainActivity extends AppCompatActivity  {
     WebView webView;
     private long exitTime = 0;
     List<StartLocation> startLocation;
@@ -59,15 +64,9 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     private ValueCallback<Uri> uploadMessage;
     private ValueCallback<Uri[]> uploadMessageAboveL;
     private final static int FILE_CHOOSER_RESULT_CODE = 10000;
-    //声明mlocationClient对象
-    public AMapLocationClient mlocationClient;
-    //声明mLocationOption对象
-    public AMapLocationClientOption mLocationOption = null;
     private double lat = -1;
     private double lon = -1;
     public String tag = "MainActivity";
-    private boolean isFirst = false;
-    Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,8 +74,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.web_view);
         initPermission();
-        getLocation();
-        handler = new Handler();
+        EventBus.getDefault().register(this);
         WebSettings settings = webView.getSettings();
         settings.setDatabaseEnabled(true);
         String dir = this.getApplicationContext().getDir("database", Context.MODE_PRIVATE).getPath();
@@ -188,52 +186,13 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         return super.onKeyDown(keyCode, event);
     }
 
-    public void getLocation() {
-        mlocationClient = new AMapLocationClient(this);
-//初始化定位参数
-        mLocationOption = new AMapLocationClientOption();
-//设置定位监听
-        mlocationClient.setLocationListener(this);
-//设置定位模式为高精度模式，Battery_Saving为低功耗模式，Device_Sensors是仅设备模式
-        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-//设置定位间隔,单位毫秒,默认为2000ms
-        mLocationOption.setInterval(300000);
-//设置定位参数
-        mlocationClient.setLocationOption(mLocationOption);
-// 此方法为每隔固定时间会发起一次定位请求，为了减少电量消耗或网络流量消耗，
-// 注意设置合适的定位时间的间隔（最小间隔支持为1000ms），并且在合适时间调用stopLocation()方法来取消定位请求
-// 在定位结束后，在合适的生命周期调用onDestroy()方法
-// 在单次定位情况下，定位无论成功与否，都无需调用stopLocation()方法移除请求，定位sdk内部会移除
-//启动定位
-
-
+    @Subscribe
+    public void onEventMainThread(AnyEventType event) {
+        lat  = event.getLat();
+        lon = event.getLon();
+        Log.e("AmapError", "event"+event.getLat());
+        upLoadLocation(lat+"",lon+"");
     }
-
-    @Override
-    public void onLocationChanged(AMapLocation aMapLocation) {
-        if (aMapLocation != null) {
-            if (aMapLocation.getErrorCode() == 0) {
-                //定位成功回调信息，设置相关消息
-                aMapLocation.getLocationType();//获取当前定位结果来源，如网络定位结果，详见定位类型表
-                lat = aMapLocation.getLatitude();//获取纬度
-                lon = aMapLocation.getLongitude();//获取经度
-                aMapLocation.getAccuracy();//获取精度信息
-                SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                Date date = new Date(aMapLocation.getTime());
-                df.format(date);//定位时间
-                upLoadLocation(lat + "", lon + "");
-                Log.e("AmapError", "lat"
-                        + lat + "lon"
-                        + lon);
-            } else {
-                //显示错误信息ErrCode是错误码，errInfo是错误信息，详见错误码表。
-                Log.e("AmapError", "location Error, ErrCode:"
-                        + aMapLocation.getErrorCode() + ", errInfo:"
-                        + aMapLocation.getErrorInfo());
-            }
-        }
-    }
-
     private void upLoadLocation(String s, String s1) {
         OkGo.<String>post("http://212.64.72.2:8080/wuche2/appUser/saveLocationLog")
                 .tag(this)
@@ -268,9 +227,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             startLocation = JSON.parseArray(json, StartLocation.class);
             //做判断是那种类型调用哪个登录方法
             if ("startLocation".equals(startLocation.get(0).getType())) {
-                isFirst = true;
-                mlocationClient.startLocation();
-
+                startAlarm();
                 ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
                 shippingNoteInfo.setShippingNoteNumber(startLocation.get(0).getShippingNoteNumber());
                 shippingNoteInfo.setSerialNumber(startLocation.get(0).getSerialNumber());
@@ -289,8 +246,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                     }
                 });
             } else if ("stopLocation".equals(startLocation.get(0).getType())) {
-                isFirst = false;
-                mlocationClient.stopLocation();
                 ShippingNoteInfo shippingNoteInfo = new ShippingNoteInfo();
                 shippingNoteInfo.setShippingNoteNumber(startLocation.get(0).getShippingNoteNumber());
                 shippingNoteInfo.setSerialNumber(startLocation.get(0).getSerialNumber());
@@ -311,13 +266,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             }
         }
     }
-
-    Runnable runnable = new Runnable() {
-        @Override
-        public void run() {
-
-        }
-    };
 
     private void openImageChooserActivity() {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -389,5 +337,16 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        EventBus.getDefault().unregister(this);
+    }
+    public void startAlarm() {
+        //首先获得系统服务
+        AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        //设置闹钟的意图，我这里是去调用一个服务，该服务功能就是获取位置并且上传
+        Intent intent = new Intent(this, LocationService.class);
+        PendingIntent pendSender = PendingIntent.getService(this, 0, intent, 0);
+        am.cancel(pendSender);
+        //AlarmManager.RTC_WAKEUP ;这个参数表示系统会唤醒进程；设置的间隔时间是1分钟
+        am.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), 60 * 1000, pendSender);
     }
 }

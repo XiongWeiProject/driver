@@ -40,7 +40,13 @@
         </activity>
         <meta-data android:name="com.amap.api.v2.apikey" android:value="8095f65eb09191d1033d391944cec805">
         </meta-data>
-        <service android:name="com.amap.api.location.APSService"></service>
+        <service
+            android:name=".LocationService"
+            android:enabled="true"
+            android:exported="true" />
+
+        <!--处理bug：amapLocation has exception errorCode:10-->
+        <service android:name="com.amap.api.location.APSService" />
     </application>
 
 </manifest>

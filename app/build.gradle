@@ -70,5 +70,6 @@ dependencies {
     implementation 'com.alibaba:fastjson:1.2.61'
     implementation 'org.bouncycastle:bcprov-jdk15on:1.47'
     implementation (name:'locationsdk-1.0.0', ext:'aar')
+    implementation 'org.greenrobot:eventbus:3.0.0'
 
 }
